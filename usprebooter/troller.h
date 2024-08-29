@@ -8,4 +8,5 @@
 #ifndef troller_h
 #define troller_h
 int userspaceReboot(void);
+int bindfs(char* from, char* to);
 #endif /* troller_h */
