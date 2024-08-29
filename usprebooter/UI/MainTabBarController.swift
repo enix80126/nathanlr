@@ -15,8 +15,8 @@ import UIKit
         let firstVC = JailbreakViewController()
         let secondVC = OptionsViewController()
 
-        firstVC.tabBarItem = UITabBarItem(title: "越狱", image: UIImage(systemName: "sparkles"), tag: 0)
-        secondVC.tabBarItem = UITabBarItem(title: "选项", image: UIImage(systemName: "gear"), tag: 1)
+        firstVC.tabBarItem = UITabBarItem(title: "Jailbreak", image: UIImage(systemName: "sparkles"), tag: 0)
+        secondVC.tabBarItem = UITabBarItem(title: "Options/Credits", image: UIImage(systemName: "gear"), tag: 1)
 
         setViewControllers([firstVC, secondVC], animated: false)
 
