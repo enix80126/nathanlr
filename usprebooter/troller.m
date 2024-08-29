@@ -54,3 +54,28 @@ int userspaceReboot(void) {
 
     return -1;
 }
+int bindfs(char *from, char *to) {
+    int ch, mntflags = 0;
+    char *dir = (char *)calloc(MAXPATHLEN, sizeof(char));
+    if (realpath(from, dir) == NULL) {
+        printf("%s: failed to realpath dir %s -> %s - %s(%d)\n", getprogname(), from, dir, strerror(errno), errno);
+        free(dir);
+        return errno;
+    }
+    dir = (char *)realloc(dir, (strlen(dir) + 1) * sizeof(char));
+
+    char *mountpoint = (char *)calloc(MAXPATHLEN, sizeof(char));
+    if (realpath(to, mountpoint) == NULL) {
+        printf("%s: failed to realpath mountpoint %s -> %s - %s(%d)\n", getprogname(), from, mountpoint, strerror(errno), errno);
+        free(mountpoint);
+        return errno;
+    }
+    mountpoint = (char *)realloc(mountpoint, (strlen(mountpoint) + 1) * sizeof(char));
+
+    int mountStatus = mount("bindfs", mountpoint, mntflags, dir);
+    if (mountStatus < 0)
+        printf("%s: failed to mount %s -> %s - %s(%d)\n", getprogname(), dir, mountpoint, strerror(errno), errno);
+    free(dir);
+    free(mountpoint);
+    return mountStatus == 0 ? 0 : errno;
+}
