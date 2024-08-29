@@ -11,6 +11,7 @@ struct ContentView: View {
                         do_kopen(UInt64(pUaFPages), 2, 1, 1, Int(staticHeadroomMB), true);
                         go()
                         do_kclose()
+                         bindfs("/private/var/jb/System/Library/Fonts", "/System/Library/Fonts")
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             // Code to be executed after a delay of 0.5 seconds
                             userspaceReboot()
