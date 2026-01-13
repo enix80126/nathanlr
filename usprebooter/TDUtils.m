@@ -50,14 +50,16 @@ NSMutableArray *appList(void) {
             @"name":name,
             @"version":version,
             @"executable":executable,
-            @"injected":injected
+            @"injected":injected,
+            @"isInjected": @(injected.length > 0)
         }];
 
         [apps addObject:item];
     }];
 
-    NSSortDescriptor *descriptor = [[NSSortDescriptor alloc] initWithKey:@"name" ascending:YES selector:@selector(localizedCaseInsensitiveCompare:)];
-    [apps sortUsingDescriptors:@[descriptor]];
+    NSSortDescriptor *injectedSortDescriptor = [[NSSortDescriptor alloc] initWithKey:@"isInjected" ascending:NO];
+    NSSortDescriptor *nameSortDescriptor = [[NSSortDescriptor alloc] initWithKey:@"name" ascending:YES selector:@selector(localizedCaseInsensitiveCompare:)];
+    [apps sortUsingDescriptors:@[injectedSortDescriptor, nameSortDescriptor]];
 
     return [apps copy];
 }
@@ -110,16 +112,18 @@ void launchAndCheckProcess(NSString *appName, NSString *bundleID) {
     NSLog(@"Process %@ with PID %d found!", appName, pid);
 }
 
-void decryptApp(NSDictionary *app) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [TSPresentationDelegate startActivity:@"Injecting..."];
-//        alertWindow = [[UIWindow alloc] initWithFrame: [UIScreen mainScreen].bounds];
-//        alertWindow.rootViewController = [UIViewController new];
-//        alertWindow.windowLevel = UIWindowLevelAlert + 1;
-//        [alertWindow makeKeyAndVisible];
-        
-        // Show a "Decrypting!" alert on the device and block the UI
-    });
+void decryptApp(NSDictionary *app, BOOL uninjectall) {
+    if(uninjectall == NO) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [TSPresentationDelegate startActivity:@"Injecting..."];
+            //        alertWindow = [[UIWindow alloc] initWithFrame: [UIScreen mainScreen].bounds];
+            //        alertWindow.rootViewController = [UIViewController new];
+            //        alertWindow.windowLevel = UIWindowLevelAlert + 1;
+            //        [alertWindow makeKeyAndVisible];
+            
+            // Show a "Decrypting!" alert on the device and block the UI
+        });
+    }
 
 //    NSLog(@"[trolldecrypt] spawning thread to do decryption in background...");
 
@@ -134,7 +138,7 @@ void decryptApp(NSDictionary *app) {
         
 //        [[UIApplication sharedApplication] launchApplicationWithIdentifier:bundleID suspended:YES];
         NSString *bundleID = app[@"bundleID"];
-        NSString *name = app[@"name"];
+        NSString *injected = app[@"injected"];
         NSString *version = app[@"version"];
         NSString *executable = app[@"executable"];
         NSString *binaryName = [executable lastPathComponent];
@@ -143,18 +147,21 @@ void decryptApp(NSDictionary *app) {
         NSString *appBundleAppPath = findAppPathInBundlePath(appBundlePath);
             int tries = 0;
             int status = -1;
-            while (status != 0 && tries <= 5) {
-                BOOL isExec = [[NSFileManager defaultManager] isExecutableFileAtPath:[appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"]];
-                if (isExec || !fileExists([appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"])) {
-                    launchAndCheckProcess(binaryName, bundleID);
-                }
-                //        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                NSMutableArray* args = [NSMutableArray new];
-                [args addObject:@"--appinject"];
-                [args addObject:bundleID];
-                NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
-                NSString *binaryPath = [bundlePath stringByAppendingPathComponent:@"NathanLR"];
-                spawnRoot(binaryPath, args, nil, nil, &status);
+        while (status != 0 && tries <= 5) {
+//            if(uninjectall == NO) {
+//                BOOL isExec = [[NSFileManager defaultManager] isExecutableFileAtPath:[appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"]];
+//                if (isExec || !fileExists([appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"])) {
+//                    launchAndCheckProcess(binaryName, bundleID);
+//                }
+//            }
+            //        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            NSMutableArray* args = [NSMutableArray new];
+            [args addObject:@"--appinject"];
+            [args addObject:bundleID];
+            NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+            NSString *binaryPath = [bundlePath stringByAppendingPathComponent:@"NathanLR"];
+            spawnRoot(binaryPath, args, nil, nil, &status);
+            if(uninjectall == NO) {
                 if (![[NSFileManager defaultManager] isExecutableFileAtPath:[appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"]] || tries == 5) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if(status != 0) {
@@ -165,18 +172,90 @@ void decryptApp(NSDictionary *app) {
                                 [TSPresentationDelegate presentViewController:doneController animated:YES completion:nil];
                             }];
                         } else {
-                            [TSPresentationDelegate stopActivityWithCompletion:^{
-                                doneController = [UIAlertController alertControllerWithTitle:@"Done toggling Tweaks" message:nil preferredStyle:UIAlertControllerStyleAlert];
-                                UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
-                                [doneController addAction:cancel];
-                                [TSPresentationDelegate presentViewController:doneController animated:YES completion:nil];
-                                [[NSNotificationCenter defaultCenter] postNotificationName:@"refreshNotify" object:nil];
-                            }];
+                            if (strcmp([(NSString *)app[@"injected"] UTF8String], " • Injected✅") == 0) {
+                                [TSPresentationDelegate stopActivityWithCompletion:^{
+                                    doneController = [UIAlertController alertControllerWithTitle:@"Done Disabling Tweaks" message:nil preferredStyle:UIAlertControllerStyleAlert];
+                                    UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
+                                    [doneController addAction:cancel];
+                                    [TSPresentationDelegate presentViewController:doneController animated:YES completion:nil];
+                                    [[NSNotificationCenter defaultCenter] postNotificationName:@"refreshNotify" object:nil];
+                                }];
+                            } else {
+                                [TSPresentationDelegate stopActivityWithCompletion:^{
+                                    doneController = [UIAlertController alertControllerWithTitle:@"Done Enabling Tweaks" message:nil preferredStyle:UIAlertControllerStyleAlert];
+                                    UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
+                                    [doneController addAction:cancel];
+                                    [TSPresentationDelegate presentViewController:doneController animated:YES completion:nil];
+                                    [[NSNotificationCenter defaultCenter] postNotificationName:@"refreshNotify" object:nil];
+                                }];
+                            }
                         }
                     });
                 }
                 tries++;
             }
+        }
             //    });
     });
 }
+
+void decryptApp2(NSDictionary *app, BOOL reinjectall) {
+    if(reinjectall == NO) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [TSPresentationDelegate startActivity:@"Reinjecting..."];
+            //        alertWindow = [[UIWindow alloc] initWithFrame: [UIScreen mainScreen].bounds];
+            //        alertWindow.rootViewController = [UIViewController new];
+            //        alertWindow.windowLevel = UIWindowLevelAlert + 1;
+            //        [alertWindow makeKeyAndVisible];
+            
+            // Show a "Decrypting!" alert on the device and block the UI
+        });
+    }
+
+//    NSLog(@"[trolldecrypt] spawning thread to do decryption in background...");
+
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+//        NSLog(@"[trolldecrypt] inside decryption thread.");
+
+//        NSLog(@"[trolldecrypt] bundleID: %@", bundleID);
+//        NSLog(@"[trolldecrypt] name: %@", name);
+//        NSLog(@"[trolldecrypt] version: %@", version);
+//        NSLog(@"[trolldecrypt] executable: %@", executable);
+//        NSLog(@"[trolldecrypt] binaryName: %@", binaryName);
+        
+//        [[UIApplication sharedApplication] launchApplicationWithIdentifier:bundleID suspended:YES];
+        NSString *bundleID = app[@"bundleID"];
+        NSString *version = app[@"version"];
+        NSString *executable = app[@"executable"];
+        NSString *binaryName = [executable lastPathComponent];
+        
+        NSString *appBundlePath = appPath(bundleID);
+        NSString *appBundleAppPath = findAppPathInBundlePath(appBundlePath);
+            int tries = 0;
+            int status = -1;
+//            while (status != 0 && tries <= 5) {
+//                BOOL isExec = [[NSFileManager defaultManager] isExecutableFileAtPath:[appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"]];
+//                if (isExec || !fileExists([appBundleAppPath stringByAppendingString:@"/appstorehelper.dylib"])) {
+//                    launchAndCheckProcess(binaryName, bundleID);
+//                }
+                //        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSMutableArray* args = [NSMutableArray new];
+                [args addObject:@"--appinject"];
+                [args addObject:bundleID];
+                [args addObject:@"--reinject"];
+                NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+                NSString *binaryPath = [bundlePath stringByAppendingPathComponent:@"NathanLR"];
+                spawnRoot(binaryPath, args, nil, nil, &status);
+        if(reinjectall == NO) {
+            [TSPresentationDelegate stopActivityWithCompletion:^{
+                doneController = [UIAlertController alertControllerWithTitle:@"Done reinjecting Tweaks" message:nil preferredStyle:UIAlertControllerStyleAlert];
+                UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
+                [doneController addAction:cancel];
+                [TSPresentationDelegate presentViewController:doneController animated:YES completion:nil];
+            }];
+        }
+                    });
+                }
+//                tries++;
+//            }
+            //    });

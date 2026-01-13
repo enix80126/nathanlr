@@ -11,6 +11,23 @@
     self.filteredApps = self.apps;
     self.title = @"Inject into Apps";
     self.navigationController.navigationBar.prefersLargeTitles = YES;
+    
+    UIBarButtonItem *reinjectAllButton = [[UIBarButtonItem alloc] initWithTitle:@"Reinject all"
+                                                                   style:UIBarButtonItemStylePlain
+                                                                  target:self
+                                                                  action:@selector(reinjectAllButtonTapped)];
+    
+    UIBarButtonItem *uninjectAllButton = [[UIBarButtonItem alloc] initWithTitle:@"Uninject all"
+                                                                   style:UIBarButtonItemStylePlain
+                                                                  target:self
+                                                                  action:@selector(uninjectAllButtonTapped)];
+    self.navigationItem.leftBarButtonItems = @[reinjectAllButton, uninjectAllButton];
+    
+    UIBarButtonItem *closeButton = [[UIBarButtonItem alloc] initWithTitle:@"Close"
+                                                                   style:UIBarButtonItemStylePlain
+                                                                  target:self
+                                                                  action:@selector(closeButtonTapped)];
+    self.navigationItem.rightBarButtonItem = closeButton;
 
     UIRefreshControl *refreshControl = [[UIRefreshControl alloc] init];
     [refreshControl addTarget:self action:@selector(refreshApps:) forControlEvents:UIControlEventValueChanged];
@@ -81,18 +98,73 @@
     
     NSDictionary *app = self.filteredApps[indexPath.row];
 
-    alert = [UIAlertController alertControllerWithTitle:@"Inject" message:[NSString stringWithFormat:@"Toggle Tweaks on %@?", app[@"name"]] preferredStyle:UIAlertControllerStyleAlert];
+    if (strcmp([(NSString *)app[@"injected"] UTF8String], " • Injected✅") == 0) {
+        alert = [UIAlertController alertControllerWithTitle:@"Inject" message:[NSString stringWithFormat:@"Disable Tweaks on %@?", app[@"name"]] preferredStyle:UIAlertControllerStyleAlert];
+    } else {
+        alert = [UIAlertController alertControllerWithTitle:@"Inject" message:[NSString stringWithFormat:@"Enable Tweaks on %@?", app[@"name"]] preferredStyle:UIAlertControllerStyleAlert];
+    }
 
     UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil];
     UIAlertAction *decrypt = [UIAlertAction actionWithTitle:@"Yes" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        decryptApp(app);
+        decryptApp(app, NO);
     }];
-
+    
+    UIAlertAction *decrypt2 = [UIAlertAction actionWithTitle:@"Reinject" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            decryptApp2(app, NO);
+    }];
+    
     [alert addAction:decrypt];
+    if (strcmp([(NSString *)app[@"injected"] UTF8String], " • Injected✅") == 0 && strstr([(NSString *)app[@"bundleID"] UTF8String], "com.apple.") == NULL) {
+        [alert addAction:decrypt2];
+    }
     [alert addAction:cancel];
 
     [self presentViewController:alert animated:YES completion:nil];
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+}
+
+- (void)reinjectAllButtonTapped {
+    [TSPresentationDelegate startActivity:@"Reinjecting..."];
+    for (NSDictionary *app in self.apps) {
+        if (strcmp([(NSString *)app[@"injected"] UTF8String], " • Injected✅") == 0 && strstr([(NSString *)app[@"bundleID"] UTF8String], "com.apple.") == NULL) {
+            decryptApp2(app, YES);
+        }
+    }
+    [TSPresentationDelegate stopActivityWithCompletion:^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Done reinjecting Tweaks" message:nil preferredStyle:UIAlertControllerStyleAlert];
+        UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
+        [alert addAction:cancel];
+        [TSPresentationDelegate presentViewController:alert animated:YES completion:nil];
+    }];
+}
+
+- (void)uninjectAllButtonTapped {
+    UIAlertController *alert;
+    alert = [UIAlertController alertControllerWithTitle:@"Uninject All" message:[NSString stringWithFormat:@"Uninject all apps?"] preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil];
+    
+    UIAlertAction *yes = [UIAlertAction actionWithTitle:@"Yes" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [TSPresentationDelegate startActivity:@"Uninjecting..."];
+        for (NSDictionary *app in self.apps) {
+            if (strcmp([(NSString *)app[@"injected"] UTF8String], " • Injected✅") == 0) {
+                decryptApp(app, YES);
+            }
+        }
+        [TSPresentationDelegate stopActivityWithCompletion:^{
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Done uninjecting Tweaks" message:nil preferredStyle:UIAlertControllerStyleAlert];
+            UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil];
+            [alert addAction:cancel];
+            [TSPresentationDelegate presentViewController:alert animated:YES completion:nil];
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"refreshNotify" object:nil];
+        }];
+    }];
+    [alert addAction:yes];
+    [alert addAction:cancel];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)closeButtonTapped {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
